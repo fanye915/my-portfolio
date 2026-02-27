@@ -22,31 +22,25 @@ const portfolioData = {
     ]}
 };
 
-function updateAllData() {
+async function updateAllData() {
     const allCodes = [];
     Object.values(portfolioData).forEach(p => p.stocks.forEach(s => allCodes.push(s.code)));
     
-    // 清除旧的脚本标签，防止内存溢出
-    const oldScript = document.getElementById('sina-api-script');
-    if (oldScript) oldScript.remove();
+    // 使用 allorigins 代理来绕过新浪的 403 封锁
+    const sinaUrl = `https://hq.sinajs.cn/list=${allCodes.join(',')}`;
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(sinaUrl)}`;
 
-    const script = document.createElement('script');
-    script.id = 'sina-api-script';
-    // 强制使用 https 并添加随机数防止缓存
-    script.src = `https://hq.sinajs.cn/list=${allCodes.join(',')}?_=${Math.random()}`;
-    script.charset = "GBK"; 
-    
-    script.onload = () => {
-        try {
-            calculateAndRender();
-        } catch (e) {
-            console.error("计算出错:", e);
-        }
-    };
-    document.body.appendChild(script);
+    try {
+        const response = await fetch(proxyUrl);
+        const data = await response.json();
+        // data.contents 就是新浪返回的那一串 var hq_str_...
+        parseSinaData(data.contents);
+    } catch (error) {
+        console.error("数据抓取失败:", error);
+    }
 }
 
-function calculateAndRender() {
+function parseSinaData(rawString) {
     let totalTableHtml = '';
     
     ['A', 'HK', 'US'].forEach(key => {
@@ -54,33 +48,35 @@ function calculateAndRender() {
         const group = portfolioData[key];
         
         group.stocks.forEach(stock => {
-            const rawData = window[`hq_str_${stock.code}`];
-            if (!rawData || rawData.length < 10) {
-                console.warn(`未获取到数据: ${stock.code}`);
-                return;
-            }
+            // 在字符串中寻找类似 hq_str_sh513390="..." 的内容
+            const searchStr = `hq_str_${stock.code}="`;
+            const start = rawString.indexOf(searchStr);
+            if (start === -1) return;
             
-            const parts = rawData.split(',');
+            const end = rawString.indexOf('";', start);
+            const content = rawString.substring(start + searchStr.length, end);
+            const parts = content.split(',');
+            
             let currentPrice = 0;
-            
-            // 修正新浪 API 解析逻辑
             if (stock.code.includes('hk')) currentPrice = parseFloat(parts[6]); 
             else if (stock.code.includes('gb_')) currentPrice = parseFloat(parts[1]); 
             else currentPrice = parseFloat(parts[3]); 
 
-            if (isNaN(currentPrice) || currentPrice === 0) return;
+            if (!isNaN(currentPrice) && currentPrice > 0) {
+                const changePercent = ((currentPrice - stock.buyPrice) / stock.buyPrice * 100).toFixed(2);
+                const stockValue = group.capital * stock.weight * (currentPrice / stock.buyPrice);
+                currentGroupValue += stockValue;
 
-            const changePercent = ((currentPrice - stock.buyPrice) / stock.buyPrice * 100).toFixed(2);
-            const stockValue = group.capital * stock.weight * (currentPrice / stock.buyPrice);
-            currentGroupValue += stockValue;
-
-            totalTableHtml += `
-                <tr class="border-t">
-                    <td class="p-4 font-medium">${stock.name}</td>
-                    <td class="p-4 text-gray-500">${stock.buyPrice}</td>
-                    <td class="p-4 font-mono">${currentPrice.toFixed(3)}</td>
-                    <td class="p-4 ${changePercent >= 0 ? 'text-red-500' : 'text-green-500'} font-bold">${changePercent}%</td>
-                </tr>`;
+                totalTableHtml += `
+                    <tr class="border-t">
+                        <td class="p-4 font-medium">${stock.name} <span class="text-xs text-gray-400">${stock.code.toUpperCase()}</span></td>
+                        <td class="p-4 text-gray-500">${stock.buyPrice}</td>
+                        <td class="p-4 font-mono font-bold">${currentPrice.toFixed(3)}</td>
+                        <td class="p-4 ${changePercent >= 0 ? 'text-red-600' : 'text-green-600'} font-bold">
+                            ${changePercent >= 0 ? '▲' : '▼'} ${Math.abs(changePercent)}%
+                        </td>
+                    </tr>`;
+            }
         });
 
         const nav = currentGroupValue.toLocaleString(undefined, {minimumFractionDigits: 2});
@@ -91,17 +87,18 @@ function calculateAndRender() {
         
         if (navEl) navEl.innerText = `${group.currency} ${nav}`;
         if (profitEl) {
-            profitEl.innerText = `累计收益: ${totalProfit}%`;
-            profitEl.className = `text-sm ${totalProfit >= 0 ? 'text-red-500' : 'text-green-500'}`;
+            profitEl.innerText = `自年初以来: ${totalProfit}%`;
+            profitEl.className = `text-sm font-bold ${totalProfit >= 0 ? 'text-red-600' : 'text-green-600'}`;
         }
     });
 
-    const tableBody = document.getElementById('stock-table-body');
-    if (tableBody) tableBody.innerHTML = totalTableHtml;
+    document.getElementById('stock-table-body').innerHTML = totalTableHtml;
+    
+    // 如果你有图表函数，在这里调用
+    if (typeof renderChart === "function") renderChart();
 }
 
-// 确保 DOM 加载完成后再执行
 window.addEventListener('load', () => {
     updateAllData();
-    setInterval(updateAllData, 30000);
+    setInterval(updateAllData, 60000); // 代理接口较慢，建议1分钟更新一次
 });
