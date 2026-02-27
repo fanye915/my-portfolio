@@ -1,3 +1,4 @@
+/* 版本号：3.0 - 代理绕路版 */
 const portfolioData = {
     A: { currency: '¥', capital: 1000000, stocks: [
         { code: 'sh513390', weight: 0.25, buyPrice: 1.425, name: '纳指100' },
@@ -26,17 +27,20 @@ async function updateAllData() {
     const allCodes = [];
     Object.values(portfolioData).forEach(p => p.stocks.forEach(s => allCodes.push(s.code)));
     
-    // 使用 allorigins 代理来绕过新浪的 403 封锁
     const sinaUrl = `https://hq.sinajs.cn/list=${allCodes.join(',')}`;
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(sinaUrl)}`;
+    // 改用 Codetabs 代理，这个代理非常直接，不需要二次解析 JSON
+    const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(sinaUrl)}`;
 
     try {
         const response = await fetch(proxyUrl);
-        const data = await response.json();
-        // data.contents 就是新浪返回的那一串 var hq_str_...
-        parseSinaData(data.contents);
+        const text = await response.text();
+        if (text.includes('hq_str')) {
+            parseSinaData(text);
+        } else {
+            console.error("数据格式异常");
+        }
     } catch (error) {
-        console.error("数据抓取失败:", error);
+        console.error("代理请求失败:", error);
     }
 }
 
@@ -48,7 +52,6 @@ function parseSinaData(rawString) {
         const group = portfolioData[key];
         
         group.stocks.forEach(stock => {
-            // 在字符串中寻找类似 hq_str_sh513390="..." 的内容
             const searchStr = `hq_str_${stock.code}="`;
             const start = rawString.indexOf(searchStr);
             if (start === -1) return;
@@ -69,10 +72,10 @@ function parseSinaData(rawString) {
 
                 totalTableHtml += `
                     <tr class="border-t">
-                        <td class="p-4 font-medium">${stock.name} <span class="text-xs text-gray-400">${stock.code.toUpperCase()}</span></td>
+                        <td class="p-4 font-medium">${stock.name}</td>
                         <td class="p-4 text-gray-500">${stock.buyPrice}</td>
                         <td class="p-4 font-mono font-bold">${currentPrice.toFixed(3)}</td>
-                        <td class="p-4 ${changePercent >= 0 ? 'text-red-600' : 'text-green-600'} font-bold">
+                        <td class="p-4 ${changePercent >= 0 ? 'text-red-600' : 'text-green-600'}">
                             ${changePercent >= 0 ? '▲' : '▼'} ${Math.abs(changePercent)}%
                         </td>
                     </tr>`;
@@ -82,23 +85,15 @@ function parseSinaData(rawString) {
         const nav = currentGroupValue.toLocaleString(undefined, {minimumFractionDigits: 2});
         const totalProfit = ((currentGroupValue / group.capital - 1) * 100).toFixed(2);
         
-        const navEl = document.getElementById(`${key.toLowerCase()}-nav`);
-        const profitEl = document.getElementById(`${key.toLowerCase()}-profit`);
-        
-        if (navEl) navEl.innerText = `${group.currency} ${nav}`;
-        if (profitEl) {
-            profitEl.innerText = `自年初以来: ${totalProfit}%`;
-            profitEl.className = `text-sm font-bold ${totalProfit >= 0 ? 'text-red-600' : 'text-green-600'}`;
-        }
+        document.getElementById(`${key.toLowerCase()}-nav`).innerText = `${group.currency} ${nav}`;
+        document.getElementById(`${key.toLowerCase()}-profit`).innerText = `累计收益: ${totalProfit}%`;
+        document.getElementById(`${key.toLowerCase()}-profit`).className = `text-sm font-bold ${totalProfit >= 0 ? 'text-red-600' : 'text-green-600'}`;
     });
 
     document.getElementById('stock-table-body').innerHTML = totalTableHtml;
-    
-    // 如果你有图表函数，在这里调用
-    if (typeof renderChart === "function") renderChart();
 }
 
-window.addEventListener('load', () => {
-    updateAllData();
-    setInterval(updateAllData, 60000); // 代理接口较慢，建议1分钟更新一次
-});
+// 首次执行
+updateAllData();
+// 每分钟自动刷新
+setInterval(updateAllData, 60000);
