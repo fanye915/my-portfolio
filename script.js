@@ -1,4 +1,4 @@
-/* 版本号：3.0 - 代理绕路版 */
+/* 版本号：4.0 - 强力解析版 */
 const portfolioData = {
     A: { currency: '¥', capital: 1000000, stocks: [
         { code: 'sh513390', weight: 0.25, buyPrice: 1.425, name: '纳指100' },
@@ -28,19 +28,20 @@ async function updateAllData() {
     Object.values(portfolioData).forEach(p => p.stocks.forEach(s => allCodes.push(s.code)));
     
     const sinaUrl = `https://hq.sinajs.cn/list=${allCodes.join(',')}`;
-    // 改用 Codetabs 代理，这个代理非常直接，不需要二次解析 JSON
     const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(sinaUrl)}`;
 
     try {
         const response = await fetch(proxyUrl);
         const text = await response.text();
-        if (text.includes('hq_str')) {
+        
+        // 只要返回的内容包含任意一个股票代码，就开始解析
+        if (text.length > 50) {
             parseSinaData(text);
         } else {
-            console.error("数据格式异常");
+            console.error("代理返回数据太短，可能出错了");
         }
     } catch (error) {
-        console.error("代理请求失败:", error);
+        console.error("请求失败，请检查网络:", error);
     }
 }
 
@@ -52,48 +53,56 @@ function parseSinaData(rawString) {
         const group = portfolioData[key];
         
         group.stocks.forEach(stock => {
-            const searchStr = `hq_str_${stock.code}="`;
-            const start = rawString.indexOf(searchStr);
-            if (start === -1) return;
+            // 改进的截取逻辑：直接找代码对应的引号内容
+            const pattern = new RegExp(`hq_str_${stock.code}="([^"]+)"`);
+            const match = rawString.match(pattern);
             
-            const end = rawString.indexOf('";', start);
-            const content = rawString.substring(start + searchStr.length, end);
-            const parts = content.split(',');
-            
-            let currentPrice = 0;
-            if (stock.code.includes('hk')) currentPrice = parseFloat(parts[6]); 
-            else if (stock.code.includes('gb_')) currentPrice = parseFloat(parts[1]); 
-            else currentPrice = parseFloat(parts[3]); 
+            if (match && match[1]) {
+                const parts = match[1].split(',');
+                let currentPrice = 0;
+                
+                // 解析各市场现价
+                if (stock.code.includes('hk')) currentPrice = parseFloat(parts[6]); 
+                else if (stock.code.includes('gb_')) currentPrice = parseFloat(parts[1]); 
+                else currentPrice = parseFloat(parts[3]); 
 
-            if (!isNaN(currentPrice) && currentPrice > 0) {
-                const changePercent = ((currentPrice - stock.buyPrice) / stock.buyPrice * 100).toFixed(2);
-                const stockValue = group.capital * stock.weight * (currentPrice / stock.buyPrice);
-                currentGroupValue += stockValue;
+                if (!isNaN(currentPrice) && currentPrice > 0) {
+                    const changePercent = ((currentPrice - stock.buyPrice) / stock.buyPrice * 100).toFixed(2);
+                    const stockValue = group.capital * stock.weight * (currentPrice / stock.buyPrice);
+                    currentGroupValue += stockValue;
 
-                totalTableHtml += `
-                    <tr class="border-t">
-                        <td class="p-4 font-medium">${stock.name}</td>
-                        <td class="p-4 text-gray-500">${stock.buyPrice}</td>
-                        <td class="p-4 font-mono font-bold">${currentPrice.toFixed(3)}</td>
-                        <td class="p-4 ${changePercent >= 0 ? 'text-red-600' : 'text-green-600'}">
-                            ${changePercent >= 0 ? '▲' : '▼'} ${Math.abs(changePercent)}%
-                        </td>
-                    </tr>`;
+                    totalTableHtml += `
+                        <tr class="border-t">
+                            <td class="p-4 font-medium text-gray-800">${stock.name}</td>
+                            <td class="p-4 text-gray-400">${stock.buyPrice.toFixed(3)}</td>
+                            <td class="p-4 font-mono font-bold text-blue-600">${currentPrice.toFixed(3)}</td>
+                            <td class="p-4 ${changePercent >= 0 ? 'text-red-500' : 'text-green-500'} font-bold">
+                                ${changePercent >= 0 ? '+' : ''}${changePercent}%
+                            </td>
+                        </tr>`;
+                }
             }
         });
 
+        // 更新 UI
         const nav = currentGroupValue.toLocaleString(undefined, {minimumFractionDigits: 2});
         const totalProfit = ((currentGroupValue / group.capital - 1) * 100).toFixed(2);
         
-        document.getElementById(`${key.toLowerCase()}-nav`).innerText = `${group.currency} ${nav}`;
-        document.getElementById(`${key.toLowerCase()}-profit`).innerText = `累计收益: ${totalProfit}%`;
-        document.getElementById(`${key.toLowerCase()}-profit`).className = `text-sm font-bold ${totalProfit >= 0 ? 'text-red-600' : 'text-green-600'}`;
+        const navEl = document.getElementById(`${key.toLowerCase()}-nav`);
+        const profitEl = document.getElementById(`${key.toLowerCase()}-profit`);
+        
+        if (navEl) navEl.innerText = `${group.currency} ${nav}`;
+        if (profitEl) {
+            profitEl.innerText = `累计收益: ${totalProfit}%`;
+            profitEl.className = `text-sm font-bold ${totalProfit >= 0 ? 'text-red-500' : 'text-green-500'}`;
+        }
     });
 
-    document.getElementById('stock-table-body').innerHTML = totalTableHtml;
+    const tableBody = document.getElementById('stock-table-body');
+    if (tableBody) tableBody.innerHTML = totalTableHtml;
 }
 
-// 首次执行
+// 立即运行一次
 updateAllData();
-// 每分钟自动刷新
+// 每一分钟刷新一次
 setInterval(updateAllData, 60000);
