@@ -1,7 +1,8 @@
-// 1. 配置初始持仓数据 (买入价格需在2026年开盘后填入)
-const portfolio = {
+// 1. 定义你的初始持仓（请根据2026年1月初的实际开盘价修改 buyPrice）
+const portfolioData = {
     A: {
-        currency: 'CNY', capital: 1000000,
+        currency: '¥', 
+        capital: 1000000,
         stocks: [
             { code: 'sh513390', weight: 0.25, buyPrice: 2.108, name: '纳指100ETF' },
             { code: 'sz159652', weight: 0.25, buyPrice: 1.705, name: '有色50ETF' },
@@ -11,82 +12,94 @@ const portfolio = {
         ]
     },
     HK: {
-        currency: 'HKD', capital: 1000000,
+        currency: 'HK$', 
+        capital: 1000000,
         stocks: [
-            { code: 'hk03455', weight: 0.25, buyPrice: 10.00, name: '纳指100ETF' },
-            { code: 'hk03132', weight: 0.20, buyPrice: 10.00, name: '全球半导体ETF' },
-            { code: 'hk03147', weight: 0.20, buyPrice: 10.00, name: '创业板ETF' },
-            { code: 'hk03110', weight: 0.20, buyPrice: 10.00, name: '高股息ETF' },
-            { code: 'hk02840', weight: 0.15, buyPrice: 10.00, name: '黄金ETF' }
+            { code: 'hk03455', weight: 0.25, buyPrice: 15.2, name: '纳指100' },
+            { code: 'hk03132', weight: 0.20, buyPrice: 8.5, name: '全球半导体' },
+            { code: 'hk03147', weight: 0.20, buyPrice: 7.2, name: '创业板' },
+            { code: 'hk03110', weight: 0.20, buyPrice: 12.0, name: '高股息' },
+            { code: 'hk02840', weight: 0.15, buyPrice: 1500.0, name: '黄金ETF' }
         ]
     },
     US: {
-        currency: 'USD', capital: 1000000,
+        currency: '$', 
+        capital: 1000000,
         stocks: [
-            { code: 'gb_qqq', weight: 0.25, buyPrice: 400.00, name: 'QQQ' },
-            { code: 'gb_spy', weight: 0.25, buyPrice: 500.00, name: 'SPY' },
-            { code: 'gb_ring', weight: 0.20, buyPrice: 30.00, name: 'RING' },
-            { code: 'gb_copx', weight: 0.20, buyPrice: 40.00, name: 'COPX' },
-            { code: 'gb_bitb', weight: 0.10, buyPrice: 30.00, name: 'BITB' }
+            { code: 'gb_qqq', weight: 0.25, buyPrice: 450.0, name: 'QQQ' },
+            { code: 'gb_spy', weight: 0.25, buyPrice: 520.0, name: 'SPY' },
+            { code: 'gb_ring', weight: 0.20, buyPrice: 35.0, name: 'RING' },
+            { code: 'gb_copx', weight: 0.20, buyPrice: 45.0, name: 'COPX' },
+            { code: 'gb_bitb', weight: 0.10, buyPrice: 40.0, name: 'BITB' }
         ]
     }
 };
 
-// 2. 获取新浪财经数据
-async function fetchData() {
-    const allCodes = [...portfolio.A.stocks, ...portfolio.HK.stocks, ...portfolio.US.stocks].map(s => s.code).join(',');
-    // 注意：实际开发中，新浪接口在浏览器直接调用会有跨域限制，这里使用辅助接口或代理
-    const url = `https://hq.sinajs.cn/list=${allCodes}`;
+// 2. 动态加载新浪数据的核心函数
+function updateAllData() {
+    const allCodes = [];
+    Object.values(portfolioData).forEach(p => p.stocks.forEach(s => allCodes.push(s.code)));
     
-    // 这里模拟数据获取逻辑（因为GitHub静态页无法直接跨域请求新浪）
-    // 实际操作中建议通过简单的 API 转发
-    updateUI(); 
+    // 创建一个 script 标签，利用新浪 API 的 JS 回调机制
+    const script = document.createElement('script');
+    script.src = `https://hq.sinajs.cn/list=${allCodes.join(',')}`;
+    // 新浪接口要求 GBK 编码
+    script.charset = "GBK"; 
+    
+    script.onload = () => {
+        calculateAndRender();
+        document.body.removeChild(script);
+    };
+    document.body.appendChild(script);
 }
 
-function updateUI() {
-    // 模拟计算逻辑（实际中需解析新浪返回的字符串）
-    calcPortfolio('A', 'a-nav', 'a-profit');
-    calcPortfolio('HK', 'hk-nav', 'hk-profit');
-    calcPortfolio('US', 'us-nav', 'us-profit');
-    renderTable();
-    renderChart();
-}
+// 3. 计算逻辑
+function calculateAndRender() {
+    let totalTableHtml = '';
+    
+    ['A', 'HK', 'US'].forEach(key => {
+        let currentGroupValue = 0;
+        const group = portfolioData[key];
+        
+        group.stocks.forEach(stock => {
+            // 从新浪返回的全局变量中提取数据 (变量名如 hq_str_sh513390)
+            const rawData = window[`hq_str_${stock.code}`];
+            if (!rawData) return;
+            
+            const parts = rawData.split(',');
+            let currentPrice = 0;
+            
+            // 处理不同市场的数据格式
+            if (stock.code.includes('hk')) currentPrice = parseFloat(parts[6]); // 港股现价在第6位
+            else if (stock.code.includes('gb_')) currentPrice = parseFloat(parts[1]); // 美股现价在第1位
+            else currentPrice = parseFloat(parts[3]); // A股现价在第3位
 
-function calcPortfolio(key, navId, profitId) {
-    let currentTotal = portfolio[key].capital; // 简化模型：假设当前持仓平稳
-    document.getElementById(navId).innerText = `${portfolio[key].currency} ${currentTotal.toLocaleString()}`;
-    document.getElementById(profitId).innerText = `累计收益：0.00%`;
-    document.getElementById(profitId).className = "text-sm text-green-500";
-}
+            const changePercent = ((currentPrice - stock.buyPrice) / stock.buyPrice * 100).toFixed(2);
+            const stockValue = group.capital * stock.weight * (currentPrice / stock.buyPrice);
+            currentGroupValue += stockValue;
 
-function renderTable() {
-    const tbody = document.getElementById('stock-table-body');
-    let html = '';
-    [...portfolio.A.stocks, ...portfolio.HK.stocks, ...portfolio.US.stocks].forEach(s => {
-        html += `<tr class="border-t">
-            <td class="p-4">${s.name} (${s.code.replace('gb_','').toUpperCase()})</td>
-            <td class="p-4 text-gray-400">${s.buyPrice}</td>
-            <td class="p-4 font-mono">加载中...</td>
-            <td class="p-4 text-red-500">+0.00%</td>
-        </tr>`;
+            totalTableHtml += `
+                <tr class="border-t">
+                    <td class="p-4 font-medium">${stock.name}</td>
+                    <td class="p-4 text-gray-500">${stock.buyPrice}</td>
+                    <td class="p-4 font-mono">${currentPrice.toFixed(3)}</td>
+                    <td class="p-4 ${changePercent >= 0 ? 'text-red-500' : 'text-green-500'}">${changePercent}%</td>
+                </tr>
+            `;
+        });
+
+        // 更新顶部卡片
+        const nav = currentGroupValue.toLocaleString(undefined, {minimumFractionDigits: 2});
+        const totalProfit = ((currentGroupValue / group.capital - 1) * 100).toFixed(2);
+        
+        document.getElementById(`${key.toLowerCase()}-nav`).innerText = `${group.currency} ${nav}`;
+        document.getElementById(`${key.toLowerCase()}-profit`).innerText = `累计收益: ${totalProfit}%`;
+        document.getElementById(`${key.toLowerCase()}-profit`).className = `text-sm ${totalProfit >= 0 ? 'text-red-500' : 'text-green-500'}`;
     });
-    tbody.innerHTML = html;
+
+    document.getElementById('stock-table-body').innerHTML = totalTableHtml;
 }
 
-function renderChart() {
-    const ctx = document.getElementById('yieldChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: ['2026-01', '2026-02'],
-            datasets: [{
-                label: '总资产价值',
-                data: [3000000, 3050000],
-                borderColor: 'rgb(59, 130, 246)',
-                tension: 0.1
-            }]
-        }
-    });
-}
-
-window.onload = fetchData;
+// 每 30 秒自动刷新一次
+updateAllData();
+setInterval(updateAllData, 30000);
