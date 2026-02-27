@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的全球资产配置看板</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-5">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold text-center mb-8 text-blue-800">2026 全球资产配置实时看板</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-lg shadow border-l-4 border-red-500">
+                <h2 class="text-gray-500">A股组合 (CNY)</h2>
+                <div id="a-nav" class="text-2xl font-bold">加载中...</div>
+                <div id="a-profit" class="text-sm">--</div>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
+                <h2 class="text-gray-500">港股组合 (HKD)</h2>
+                <div id="hk-nav" class="text-2xl font-bold">加载中...</div>
+                <div id="hk-profit" class="text-sm">--</div>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
+                <h2 class="text-gray-500">美股组合 (USD)</h2>
+                <div id="us-nav" class="text-2xl font-bold">加载中...</div>
+                <div id="us-profit" class="text-sm">--</div>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
+            <canvas id="yieldChart" height="100"></canvas>
+        </div>
+
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <table class="w-full text-left">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="p-4">代码/名称</th>
+                        <th class="p-4">初始价格 (2026)</th>
+                        <th class="p-4">实时现价</th>
+                        <th class="p-4">当日涨跌</th>
+                    </tr>
+                </thead>
+                <tbody id="stock-table-body">
+                    </tbody>
+            </table>
+        </div>
+        <p class="text-center text-gray-400 mt-10 text-xs">数据接口：新浪财经 | 模拟 2026 开盘买入</p>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
