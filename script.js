@@ -3,18 +3,18 @@ const portfolio = {
     A: {
         currency: 'CNY', capital: 1000000,
         stocks: [
-            { code: 'sh513390', weight: 0.25, buyPrice: 1.00, name: '纳指100ETF' },
-            { code: 'sz159652', weight: 0.25, buyPrice: 1.00, name: '有色50ETF' },
-            { code: 'sh588200', weight: 0.25, buyPrice: 1.00, name: '科创芯片ETF' },
-            { code: 'sh515880', weight: 0.15, buyPrice: 1.00, name: '通信ETF' },
-            { code: 'sh518880', weight: 0.10, buyPrice: 1.00, name: '黄金ETF' }
+            { code: 'sh513390', weight: 0.25, buyPrice: 2.108, name: '纳指100ETF' },
+            { code: 'sz159652', weight: 0.25, buyPrice: 1.705, name: '有色50ETF' },
+            { code: 'sh588200', weight: 0.25, buyPrice: 2.373, name: '科创芯片ETF' },
+            { code: 'sh515880', weight: 0.15, buyPrice: 1.041, name: '通信ETF' },
+            { code: 'sh518880', weight: 0.10, buyPrice: 9.421, name: '黄金ETF' }
         ]
     },
     HK: {
         currency: 'HKD', capital: 1000000,
         stocks: [
             { code: 'hk03455', weight: 0.25, buyPrice: 10.00, name: '纳指100ETF' },
-            { code: 'hk03132', weight: 0.20, buyPrice: 10.00, name: '全球半导体' },
+            { code: 'hk03132', weight: 0.20, buyPrice: 10.00, name: '全球半导体ETF' },
             { code: 'hk03147', weight: 0.20, buyPrice: 10.00, name: '创业板ETF' },
             { code: 'hk03110', weight: 0.20, buyPrice: 10.00, name: '高股息ETF' },
             { code: 'hk02840', weight: 0.15, buyPrice: 10.00, name: '黄金ETF' }
