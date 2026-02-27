@@ -99,7 +99,39 @@ function calculateAndRender() {
 
     document.getElementById('stock-table-body').innerHTML = totalTableHtml;
 }
+async function renderChart() {
+    // 从你的 GitHub 仓库读取历史数据
+    const response = await fetch('data.json');
+    const historyData = await response.json();
 
+    const labels = historyData.map(item => item.date);
+    const values = historyData.map(item => item.value);
+
+    const ctx = document.getElementById('yieldChart').getContext('2d');
+    
+    // 如果之前有图表先销毁（防止重复渲染）
+    if (window.myChart) window.myChart.destroy();
+
+    window.myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '账户总净值 (CNY/HKD/USD混合折算)',
+                data: values,
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: true } },
+            scales: { y: { beginAtZero: false } }
+        }
+    });
+}
 // 每 30 秒自动刷新一次
 updateAllData();
 setInterval(updateAllData, 30000);
