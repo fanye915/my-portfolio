@@ -1,0 +1,33 @@
+name: Daily Portfolio Update
+
+on:
+  schedule:
+    - cron: '0 16 * * *' # 每天北京时间 24:00 (UTC 16:00) 自动执行
+  workflow_dispatch: # 允许你手动点击按钮执行
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Fetch Prices and Update JSON
+        run: |
+          python update_script.py
+
+      - name: Commit and Push
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add data.json
+          git commit -m "Update daily net value" || exit 0
+          git push
